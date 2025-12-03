@@ -1,0 +1,43 @@
+name: Ejecutar scraper de COMPRAR y cargar en BigQuery
+
+on:
+  workflow_dispatch: {}   # Permite ejecutarlo manualmente desde GitHub Actions
+
+jobs:
+  run-compras-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: "stable"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create service account key file
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: |
+          echo "$GCP_SERVICE_ACCOUNT_KEY" > sa-key.json
+
+      - name: Run scraper and upload to BigQuery
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          python compras_to_bigquery.py \
+            --credentials "sa-key.json" \
+            --project-id "$GCP_PROJECT_ID" \
+            --dataset "proceso_compras" \
+            --table "procesos_tics"
