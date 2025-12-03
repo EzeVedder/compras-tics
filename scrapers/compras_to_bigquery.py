@@ -5,18 +5,16 @@
 compras_to_bigquery.py
 
 1) Usa comprar_bot.ejecutar_robot() para scrapear COMPRAR y armar un DataFrame.
-2) Transforma las columnas al esquema de BigQuery.
+2) Transforma las columnas al esquema de la tabla procesos_tics en BigQuery.
 3) Sube los datos a BigQuery usando un LOAD JOB (compatible con free tier / sandbox).
 
 Uso local de ejemplo:
 
-    python compras_to_bigquery.py \
-        --credentials "C:\\ruta\\sa-key.json" \
-        --project-id "proceso-compras" \
-        --dataset "proceso_compras" \
+    python compras_to_bigquery.py ^
+        --credentials "C:\\ruta\\sa-key.json" ^
+        --project-id "proceso-compras" ^
+        --dataset "proceso_compras" ^
         --table "procesos_tics"
-
-En GitHub Actions vamos a llamar a este script con esa misma firma.
 """
 
 import argparse
@@ -30,13 +28,9 @@ from google.cloud import bigquery
 from google.cloud.bigquery import Client as BigQueryClient
 from google.oauth2 import service_account
 
-# Importamos la lógica de scraping
-from comprar_bot import ejecutar_robot
+# Importamos la lógica de scraping desde scrapers/comprar_bot.py
+from scrapers.comprar_bot import ejecutar_robot
 
-
-# ------------------------
-# Parsing de argumentos
-# ------------------------
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -64,10 +58,6 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
-# ------------------------
-# Helpers BigQuery
-# ------------------------
 
 def crear_cliente_bigquery(
     project_id: str,
@@ -117,7 +107,7 @@ def df_a_registros_bigquery(df: pd.DataFrame) -> List[Dict[str, Any]]:
 
         registro = {
             "doc_id": doc_id,
-            "n": None,  # si querés, acá podés poner un contador incremental
+            "n": None,  # si querés, se puede reemplazar por un contador incremental
             "numero_proceso": numero_proceso,
             "expediente": row.get("expediente"),
             "nombre_proceso": row.get("nombre_proceso"),
@@ -126,17 +116,12 @@ def df_a_registros_bigquery(df: pd.DataFrame) -> List[Dict[str, Any]]:
             "estado": row.get("estado"),
             "unidad_ejecutora": row.get("unidad_ejecutora"),
             "saf": row.get("saf"),
-            # Mapeamos detalle_productos -> detalle_productos_servicios
             "detalle_productos_servicios": row.get("detalle_productos"),
-            # pliego_nombre lo guardamos como pliego_numero (es el identificador del pliego)
             "pliego_numero": row.get("pliego_nombre"),
-            # url_detalle apunta al detalle del proceso en COMPRAR
             "link": row.get("url_detalle") or row.get("pliego_url"),
-            # Como este robot ya es solo para TICS, podemos marcar es_tic = True
             "origen": "COMPRAR",
             "es_tic": True,
             "anio": anio,
-            # String ISO, BigQuery lo castea a TIMESTAMP
             "fecha_carga": datetime.utcnow().isoformat() + "Z",
         }
         registros.append(registro)
@@ -167,14 +152,10 @@ def subir_a_bigquery(
     print(f"[INFO] Filas totales en la tabla ahora: {tabla.num_rows}")
 
 
-# ------------------------
-# Main
-# ------------------------
-
 def main() -> None:
     args = parse_args()
 
-    # 1) Ejecutar el robot (scraping)
+    # 1) Ejecutar el robot de COMPRAR
     print("[INFO] Ejecutando robot de COMPRAR...")
     df = ejecutar_robot()
 
